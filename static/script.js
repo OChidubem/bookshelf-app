@@ -59,6 +59,20 @@ function searchBooks() {
         });
 }
 
+function deleteBook(bookId) {
+    fetch(`/api/delete/${bookId}`, {
+        method: "DELETE"
+    })
+    .then(response => response.json())
+    .then(data => {
+        console.log(data);
+        showAllBooks();
+    })
+    .catch(error => {
+        console.error("Error deleting book:", error);
+    });
+}
+
 function renderBooks(books) {
     const shelf = document.getElementById("bookshelf");
     shelf.innerHTML = "";
@@ -97,6 +111,7 @@ function renderBooks(books) {
             <h3>${safeTitle}</h3>
             <p class="author">${safeAuthor}</p>
             <p class="year">${safeYear}</p>
+            <button onclick="deleteBook(${book.book_id})">Delete</button>
         `;
 
         shelf.appendChild(card);

@@ -126,6 +126,16 @@ def search_books():
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
+@app.route('/api/delete/<int:book_id>', methods=['DELETE'])
+def delete_book(book_id):
+    conn = sqlite3.connect('db/books.db')
+    cursor = conn.cursor()
+
+    cursor.execute("DELETE FROM Books WHERE book_id = ?", (book_id,))
+    conn.commit()
+    conn.close()
+
+    return jsonify({"message": "Book deleted successfully"})
 
 if __name__ == '__main__':
     initialize_database()
