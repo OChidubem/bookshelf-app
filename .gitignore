@@ -1,0 +1,21 @@
+# Python bytecode
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Virtual Environment
+venv/
+env/
+ENV/
+.env
+
+# SQLite Databases
+*.db
+
+# Executables (Windows)
+*.exe
+
+# IDE/Editor specific
+.idea/
+.vscode/
+.DS_Store
