@@ -1,29 +1,25 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>My Fancy Book Shelf</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
 </head>
 <body>
-
     <header class="topbar">
-        <div class="topbar-content">
-            <h1>📚 My Fancy Book Shelf</h1>
-            <p>Organize, search, and display your favorite books</p>
-        </div>
+        <h1>My Fancy Book Shelf</h1>
+        <p>Organize, search, and display your favorite books</p>
     </header>
 
     <main class="page-container">
-
         <section class="panel">
             <h2>Add a Book</h2>
             <div class="form-row">
-                <input type="text" id="bookTitle" placeholder="Book Title">
-                <input type="text" id="authorName" placeholder="Author Name">
-                <input type="text" id="publicationYear" placeholder="Publication Year">
-                <input type="text" id="imageUrl" placeholder="Image URL">
+                <input id="bookTitle" type="text" placeholder="Book title">
+                <input id="authorName" type="text" placeholder="Author">
+                <input id="publicationYear" type="text" placeholder="Publication year">
+                <input id="imageUrl" type="text" placeholder="Image URL">
                 <button onclick="addBook()">Add Book</button>
             </div>
         </section>
@@ -31,7 +27,7 @@
         <section class="panel">
             <h2>Search Books</h2>
             <div class="form-row">
-                <input type="text" id="searchText" placeholder="Search by title or author">
+                <input id="searchText" type="text" placeholder="Search by title or author">
                 <button onclick="searchBooks()">Search</button>
                 <button onclick="showAllBooks()">Show All Books</button>
             </div>
@@ -40,7 +36,6 @@
         <section>
             <div id="bookshelf" class="bookshelf"></div>
         </section>
-
     </main>
 
     <script src="{{ url_for('static', filename='script.js') }}"></script>

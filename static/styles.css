@@ -147,3 +147,46 @@ button:hover {
     color: #6b7280;
     box-shadow: 0 6px 18px rgba(0, 0, 0, 0.08);
 }
+.review-section {
+  margin-top: 16px;
+  text-align: left;
+  border-top: 1px solid #e5e7eb;
+  padding-top: 14px;
+}
+
+.review-section h4 {
+  margin: 0 0 10px;
+  font-size: 1rem;
+}
+
+.review-section input {
+  width: 100%;
+  margin-bottom: 8px;
+}
+
+.reviews-list {
+  margin-top: 10px;
+}
+
+.review-item {
+  background: #f9fafb;
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  padding: 10px;
+  margin-bottom: 8px;
+}
+
+.review-item p {
+  margin: 4px 0;
+}
+
+.review-empty {
+  color: #6b7280;
+  font-size: 0.95rem;
+}
+
+.delete-review-btn {
+  margin-top: 6px;
+  padding: 8px 10px;
+  font-size: 0.85rem;
+}
