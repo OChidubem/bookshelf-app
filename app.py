@@ -1,22 +1,25 @@
 from flask import Flask, jsonify, render_template, request
 import sqlite3
 import os
-from datetime import datetime
-from bson import ObjectId
-from pymongo import MongoClient
-from dotenv import load_dotenv
-
-load_dotenv()
 
 app = Flask(__name__)
 
 # -----------------------------
-# SQLite setup for BOOKS
+# Database path
+# On Azure App Service, WEBSITE_SITE_NAME is always set.
+# We store the DB in /home/db/ so it survives redeployments.
+# Locally it goes in ./db/ next to this file.
 # -----------------------------
-DATABASE = "db/books.db"
+if os.environ.get("WEBSITE_SITE_NAME"):          # running on Azure
+    DATABASE = "/home/db/books.db"
+else:                                             # running locally
+    DATABASE = os.path.join(
+        os.path.dirname(os.path.abspath(__file__)), "db", "books.db"
+    )
 
 
 def get_connection():
+    os.makedirs(os.path.dirname(DATABASE), exist_ok=True)
     conn = sqlite3.connect(DATABASE)
     conn.row_factory = sqlite3.Row
     return conn
@@ -27,13 +30,25 @@ def initialize_database():
     cursor = conn.cursor()
 
     cursor.execute("""
-        CREATE TABLE IF NOT EXISTS Books (
-            book_id INTEGER PRIMARY KEY AUTOINCREMENT,
-            title TEXT NOT NULL,
-            publication_year TEXT,
-            author TEXT,
-            image_url TEXT
-        )
+    CREATE TABLE IF NOT EXISTS Books (
+        book_id          INTEGER PRIMARY KEY AUTOINCREMENT,
+        title            TEXT NOT NULL,
+        publication_year TEXT,
+        author           TEXT,
+        image_url        TEXT
+    )
+    """)
+
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS Reviews (
+        review_id  INTEGER PRIMARY KEY AUTOINCREMENT,
+        book_id    INTEGER NOT NULL,
+        reviewer   TEXT,
+        rating     TEXT,
+        comment    TEXT,
+        created_at TEXT DEFAULT (datetime('now')),
+        FOREIGN KEY (book_id) REFERENCES Books(book_id)
+    )
     """)
 
     conn.commit()
@@ -41,33 +56,16 @@ def initialize_database():
 
 
 # -----------------------------
-# MongoDB setup for REVIEWS
-# -----------------------------
-MONGO_URI = os.getenv("MONGO_URI", "mongodb://localhost:27017/")
-mongo_client = MongoClient(MONGO_URI)
-mongo_db = mongo_client["bookshelf_app"]
-reviews_collection = mongo_db["reviews"]
-
-
-def serialize_review(review):
-    return {
-        "_id": str(review["_id"]),
-        "book_id": review["book_id"],
-        "reviewer": review.get("reviewer", ""),
-        "rating": review.get("rating", ""),
-        "comment": review.get("comment", ""),
-        "created_at": review.get("created_at", "")
-    }
-
-
-# -----------------------------
-# Routes
+# Routes — Pages
 # -----------------------------
 @app.route("/")
 def index():
     return render_template("index.html")
 
 
+# -----------------------------
+# Routes — Books
+# -----------------------------
 @app.route("/api/books", methods=["GET"])
 def get_all_books():
     try:
@@ -75,23 +73,11 @@ def get_all_books():
         cursor = conn.cursor()
         cursor.execute("""
             SELECT book_id, title, publication_year, author, image_url
-            FROM Books
-            ORDER BY book_id DESC
+            FROM Books ORDER BY book_id DESC
         """)
-        books = cursor.fetchall()
+        books = [dict(row) for row in cursor.fetchall()]
         conn.close()
-
-        book_list = []
-        for book in books:
-            book_list.append({
-                "book_id": book["book_id"],
-                "title": book["title"],
-                "publication_year": book["publication_year"],
-                "author": book["author"],
-                "image_url": book["image_url"]
-            })
-
-        return jsonify({"books": book_list})
+        return jsonify({"books": books})
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
@@ -100,12 +86,7 @@ def get_all_books():
 def add_book():
     try:
         data = request.get_json()
-
-        title = data.get("title")
-        publication_year = data.get("publication_year")
-        author = data.get("author")
-        image_url = data.get("image_url")
-
+        title = data.get("title", "").strip()
         if not title:
             return jsonify({"error": "Title is required"}), 400
 
@@ -114,10 +95,10 @@ def add_book():
         cursor.execute("""
             INSERT INTO Books (title, publication_year, author, image_url)
             VALUES (?, ?, ?, ?)
-        """, (title, publication_year, author, image_url))
+        """, (title, data.get("publication_year", ""),
+              data.get("author", ""), data.get("image_url", "")))
         conn.commit()
         conn.close()
-
         return jsonify({"message": "Book added successfully"})
     except Exception as e:
         return jsonify({"error": str(e)}), 500
@@ -127,7 +108,6 @@ def add_book():
 def search_books():
     try:
         query = request.args.get("query", "").strip()
-
         conn = get_connection()
         cursor = conn.cursor()
         cursor.execute("""
@@ -136,20 +116,9 @@ def search_books():
             WHERE title LIKE ? OR author LIKE ?
             ORDER BY book_id DESC
         """, (f"%{query}%", f"%{query}%"))
-        books = cursor.fetchall()
+        books = [dict(row) for row in cursor.fetchall()]
         conn.close()
-
-        book_list = []
-        for book in books:
-            book_list.append({
-                "book_id": book["book_id"],
-                "title": book["title"],
-                "publication_year": book["publication_year"],
-                "author": book["author"],
-                "image_url": book["image_url"]
-            })
-
-        return jsonify({"books": book_list})
+        return jsonify({"books": books})
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
@@ -159,26 +128,32 @@ def delete_book(book_id):
     try:
         conn = get_connection()
         cursor = conn.cursor()
-        cursor.execute("DELETE FROM Books WHERE book_id = ?", (book_id,))
+        cursor.execute("DELETE FROM Reviews WHERE book_id = ?", (book_id,))
+        cursor.execute("DELETE FROM Books   WHERE book_id = ?", (book_id,))
         conn.commit()
         conn.close()
-
-        # Also delete related MongoDB reviews
-        reviews_collection.delete_many({"book_id": book_id})
-
         return jsonify({"message": "Book deleted successfully"})
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
 
 # -----------------------------
-# MongoDB Review Routes
+# Routes — Reviews
 # -----------------------------
 @app.route("/api/reviews/<int:book_id>", methods=["GET"])
 def get_reviews(book_id):
     try:
-        reviews = reviews_collection.find({"book_id": book_id}).sort("created_at", -1)
-        return jsonify({"reviews": [serialize_review(r) for r in reviews]})
+        conn = get_connection()
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT review_id, book_id, reviewer, rating, comment, created_at
+            FROM Reviews
+            WHERE book_id = ?
+            ORDER BY review_id DESC
+        """, (book_id,))
+        reviews = [dict(row) for row in cursor.fetchall()]
+        conn.close()
+        return jsonify({"reviews": reviews})
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
@@ -187,43 +162,45 @@ def get_reviews(book_id):
 def add_review():
     try:
         data = request.get_json()
-
         book_id = data.get("book_id")
-        reviewer = data.get("reviewer", "").strip()
-        rating = data.get("rating")
-        comment = data.get("comment", "").strip()
-
         if not book_id:
             return jsonify({"error": "book_id is required"}), 400
 
-        review_doc = {
-            "book_id": int(book_id),
-            "reviewer": reviewer,
-            "rating": str(rating).strip() if rating is not None else "",
-            "comment": comment,
-            "created_at": datetime.utcnow().isoformat()
-        }
-
-        result = reviews_collection.insert_one(review_doc)
-
-        return jsonify({
-            "message": "Review added successfully",
-            "review_id": str(result.inserted_id)
-        })
+        conn = get_connection()
+        cursor = conn.cursor()
+        cursor.execute("""
+            INSERT INTO Reviews (book_id, reviewer, rating, comment)
+            VALUES (?, ?, ?, ?)
+        """, (int(book_id),
+              data.get("reviewer", "").strip(),
+              str(data.get("rating", "")).strip(),
+              data.get("comment", "").strip()))
+        conn.commit()
+        review_id = cursor.lastrowid
+        conn.close()
+        return jsonify({"message": "Review added successfully", "review_id": review_id})
     except Exception as e:
-        print(f"Error in add_review: {e}")
         return jsonify({"error": str(e)}), 500
 
 
-@app.route("/api/reviews/<review_id>", methods=["DELETE"])
+@app.route("/api/reviews/<int:review_id>", methods=["DELETE"])
 def delete_review(review_id):
     try:
-        reviews_collection.delete_one({"_id": ObjectId(review_id)})
+        conn = get_connection()
+        cursor = conn.cursor()
+        cursor.execute("DELETE FROM Reviews WHERE review_id = ?", (review_id,))
+        conn.commit()
+        conn.close()
         return jsonify({"message": "Review deleted successfully"})
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
 
+# -----------------------------
+# Entry point
+# -----------------------------
+initialize_database()
+
 if __name__ == "__main__":
-    initialize_database()
-    app.run(debug=True, host="0.0.0.0", port=5001)
+    port = int(os.environ.get("PORT", 5001))
+    app.run(debug=False, host="0.0.0.0", port=port)
