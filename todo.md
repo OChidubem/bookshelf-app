@@ -1,65 +1,48 @@
-# Database Design Description
+# Bookshelf App — Dev Notes
 
-## Tables:
+## Local Setup
 
-### Books
-- `book_id` (Primary Key): Unique identifier for each book.
-- `title`: Title of the book.
-- `publication_year`: The year the book was published.
-- Other relevant book information (e.g., ISBN, genre, etc.).
+```bash
+python3 -m venv .venv
+source .venv/bin/activate      # macOS/Linux
+.venv\Scripts\activate         # Windows
 
-### Authors
-- `author_id` (Primary Key): Unique identifier for each author.
-- `name`: Name of the author.
-- Other relevant author information (e.g., birthdate, nationality, etc.).
+pip install -r requirements.txt
+python app.py
+```
 
-### Users
-- `user_id` (Primary Key): Unique identifier for each user.
-- `username`: User's username for authentication.
-- `email`: User's email address.
-- Other relevant user information (e.g., full name, date of birth, etc.).
+Open http://127.0.0.1:5001
 
-### Reviews
-- `review_id` (Primary Key): Unique identifier for each review.
-- `book_id` (Foreign Key): References the book being reviewed.
-- `user_id` (Foreign Key): References the user who wrote the review.
-- `rating`: Rating given by the user for the book (e.g., 1 to 5 stars).
-- `review_text`: The text content of the review.
-- `review_date`: Date when the review was posted.
+## Database
 
-## Relationships:
+SQLite — auto-created at `db/books.db` on first run.
+On Azure the DB lives at `/home/db/books.db` (persists across deploys).
 
-- **Books and Authors (Many-to-Many):**
-  - Each book can have multiple authors.
-  - Each author can have written multiple books.
-  - This relationship is represented by an intermediary table, typically called `book_author`, which stores pairs of `book_id` and `author_id`.
+To reset the local DB:
+```bash
+rm db/books.db
+python app.py   # recreates it
+```
 
-- **Books and Reviews (One-to-Many):**
-  - Each book can have multiple reviews.
-  - Each review belongs to a single book.
-  - The `book_id` in the `Reviews` table serves as the foreign key.
+## Running Tests
 
-- **Users and Reviews (One-to-Many):**
-  - Each user can write multiple reviews.
-  - Each review is written by a single user.
-  - The `user_id` in the `Reviews` table serves as the foreign key.
+Start the app first, then:
+```bash
+python db/tests/test_books.py
+```
 
----
+## Azure Deployment (Kudu ZIP Deploy)
 
-## Create the Database
-- Download sqlite (https://www.sqlite.org/download.html)
-- Create a new folder and extract the database files (check the recording)
-- Open the terminal and go to the folder that contains the sqlite3
-- Create a new database: sqlite3 books.db
-- Create the tables using:.read db\script.sql
+1. Zip the project (exclude `.venv/`, `__pycache__/`, `*.db`):
+```bash
+   zip -r deploy.zip . --exclude ".venv/*" --exclude "__pycache__/*" --exclude "*.db"
+```
+2. Go to Azure Portal → App Service → Advanced Tools (Kudu) → Debug Console → CMD
+3. Drag `deploy.zip` onto `/site/wwwroot`
+4. Kudu auto-extracts and restarts the app
 
-## Create new Python Environment
-- Create new env: `python3 -m venv venv`
-- Activate the env: `venv\Scripts\activate`
-- Using the terminal: `pip install flask`
+## Startup Command (set in Azure Portal → Configuration → Stack settings)
 
-## Run the webserver
-- Using the Terminal with the corret project's path: ```run flask``` (if not working, use ```python app.py```)
-- Install flask (https://flask.palletsprojects.com/en/2.3.x/installation/)
-- While in the correct project path, type the following in the terminal: flask run
-- Click on the server address (127.0.0.1) or type in the browser to open the webpage
+```
+gunicorn --bind=0.0.0.0 --timeout 600 app:app
+```

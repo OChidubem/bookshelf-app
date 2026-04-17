@@ -8,6 +8,7 @@ venv/
 env/
 ENV/
 .env
+.venv/
 
 # SQLite Databases
 *.db
@@ -19,3 +20,4 @@ ENV/
 .idea/
 .vscode/
 .DS_Store
+deploy.zip
